@@ -1,0 +1,107 @@
+#!/bin/sh
+
+uci set luci.main.lang=zh_cn
+uci commit luci
+
+uci set system.@system[0].timezone=CST-8
+uci set system.@system[0].zonename=Asia/Shanghai
+uci set system.@system[0].hostname='LEDE'
+uci commit system
+
+uci set fstab.@global[0].anon_mount=1
+uci commit fstab
+
+uci delete firewall.@defaults[0].fullcone
+uci delete firewall.@zone[1]
+uci delete firewall.@forwarding[0]
+uci delete firewall.@rule[0]
+uci delete firewall.ike
+uci delete firewall.ipsec
+uci delete firewall.esp
+uci delete firewall.VPN
+uci delete firewall.vpn
+uci delete firewall.kms
+uci set firewall.@zone[0].masq=1
+uci set firewall.@zone[0].mtu_fix=1
+uci commit firewall
+
+uci set vsftpd.listen.enable4=0
+uci set vsftpd.listen.pasv_min_port=50000
+uci set vsftpd.listen.pasv_max_port=51000
+uci commit vsftpd
+
+uci set network.lan.ipaddr='6.6.8.2'
+uci set network.lan.proto='static'
+uci set network.lan.ifname='eth0'
+uci set network.lan.netmask='255.255.255.0'
+uci set network.lan.gateway='6.6.8.1'
+uci set network.lan.dns='6.6.8.2'
+uci set network.lan.broadcast='6.6.8.255'
+uci commit network
+
+uci set dhcp.lan.ignore=1
+uci delete dhcp.@dnsmasq[0].localservice
+uci delete dhcp.@dnsmasq[0].nonwildcard
+uci delete dhcp.@dnsmasq[0].authoritative
+uci delete dhcp.@dnsmasq[0].boguspriv
+uci delete dhcp.@dnsmasq[0].filter_aaaa
+uci delete dhcp.@dnsmasq[0].filterwin2k
+uci delete dhcp.@dnsmasq[0].nonegcache
+uci delete dhcp.@dnsmasq[0].resolvfile
+uci commit dhcp
+
+uci set turboacc.config.dns_caching=1
+uci set turboacc.config.dns_caching_dns=114.114.114.114,114.114.115.115,223.5.5.5,223.6.6.6,180.76.76.76,119.29.29.29,119.28.28.28,1.2.4.8,210.2.4.8
+uci set turboacc.config.dns_caching_mode=1
+uci commit turboacc
+/etc/init.d/turboacc restart
+
+rm -f /usr/lib/lua/luci/view/admin_status/index/mwan.htm
+rm -f /usr/lib/lua/luci/view/admin_status/index/upnp.htm
+rm -f /usr/lib/lua/luci/view/admin_status/index/ddns.htm
+rm -f /usr/lib/lua/luci/view/admin_status/index/minidlna.htm
+
+sed -i 's/\"services\"/\"nas\"/g' /usr/lib/lua/luci/controller/aria2.lua
+sed -i 's/services/nas/g' /usr/lib/lua/luci/view/aria2/overview_status.htm
+sed -i 's/\"services\"/\"nas\"/g' /usr/lib/lua/luci/controller/hd_idle.lua
+sed -i 's/\"services\"/\"nas\"/g' /usr/lib/lua/luci/controller/samba.lua
+sed -i 's/\"services\"/\"nas\"/g' /usr/lib/lua/luci/controller/samba4.lua
+sed -i 's/\"services\"/\"nas\"/g' /usr/lib/lua/luci/controller/minidlna.lua
+sed -i 's/\"services\"/\"nas\"/g' /usr/lib/lua/luci/controller/transmission.lua
+sed -i 's/\"services\"/\"nas\"/g' /usr/lib/lua/luci/controller/mjpg-streamer.lua
+sed -i 's/\"services\"/\"nas\"/g' /usr/lib/lua/luci/controller/p910nd.lua
+sed -i 's/\"services\"/\"nas\"/g' /usr/lib/lua/luci/controller/usb_printer.lua
+sed -i 's/\"services\"/\"nas\"/g' /usr/lib/lua/luci/controller/xunlei.lua
+sed -i 's/services/nas/g'  /usr/lib/lua/luci/view/minidlna_status.htm
+
+ln -sf /sbin/ip /usr/bin/ip
+
+sed -i 's#downloads.openwrt.org#mirrors.cloud.tencent.com/lede#g' /etc/opkg/distfeeds.conf
+sed -i 's/root::0:0:99999:7:::/root:$1$9oRrlp5s$wVW6ZVqPesYcijDnquCXB0:19213:0:99999:7:::/g' /etc/shadow
+
+sed -i "s/# //g" /etc/opkg/distfeeds.conf
+sed -i '/openwrt_luci/ { s/snapshots/releases\/18.06.9/g; }'  /etc/opkg/distfeeds.conf
+
+sed -i '/REDIRECT --to-ports 53/d' /etc/firewall.user
+echo 'iptables -t nat -A PREROUTING -p udp --dport 53 -j REDIRECT --to-ports 53' >> /etc/firewall.user
+echo 'iptables -t nat -A PREROUTING -p tcp --dport 53 -j REDIRECT --to-ports 53' >> /etc/firewall.user
+echo '[ -n "$(command -v ip6tables)" ] && ip6tables -t nat -A PREROUTING -p udp --dport 53 -j REDIRECT --to-ports 53' >> /etc/firewall.user
+echo '[ -n "$(command -v ip6tables)" ] && ip6tables -t nat -A PREROUTING -p tcp --dport 53 -j REDIRECT --to-ports 53' >> /etc/firewall.user
+
+sed -i '/option disabled/d' /etc/config/wireless
+sed -i '/set wireless.radio${devidx}.disabled/d' /lib/wifi/mac80211.sh
+
+sed -i '/DISTRIB_REVISION/d' /etc/openwrt_release
+echo "DISTRIB_REVISION='R22.8.2'" >> /etc/openwrt_release
+sed -i '/DISTRIB_DESCRIPTION/d' /etc/openwrt_release
+echo "DISTRIB_DESCRIPTION='OpenWrt '" >> /etc/openwrt_release
+
+sed -i '/log-facility/d' /etc/dnsmasq.conf
+echo "log-facility=/dev/null" >> /etc/dnsmasq.conf
+
+echo 'hsts=0' > /root/.wgetrc
+
+rm -rf /tmp/luci-modulecache/
+rm -f /tmp/luci-indexcache
+
+exit 0

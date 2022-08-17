@@ -1,0 +1,54 @@
+name: iLedeCi
+on:
+  push:
+    branches: 
+      - master
+  release:
+    types: [published]
+jobs:
+  build:
+    runs-on: ubuntu-20.04
+    steps:
+      - name: 检出仓库代码
+        uses: actions/checkout@master
+        with:
+          ref: master
+      - name: 安装编译环境
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          docker rmi `docker images -q`
+          sudo rm -rf /usr/share/dotnet /etc/mysql /etc/php /etc/apt/sources.list.d /usr/local/lib/android
+          sudo -E apt-get -y purge azure-cli ghc* zulu* hhvm llvm* firefox google* dotnet* powershell openjdk* adoptopenjdk* mysql* php* mongodb* dotnet* moby* snapd* || true
+          sudo -E apt-get update
+          sudo -E apt-get -y install build-essential asciidoc binutils bzip2 gawk gettext git libncurses5-dev libz-dev patch python3 unzip zlib1g-dev lib32gcc1 libc6-dev-i386 subversion flex uglifyjs gcc-multilib g++-multilib p7zip p7zip-full msmtp libssl-dev texinfo libglib2.0-dev xmlto qemu-utils upx libelf-dev autoconf automake libtool autopoint device-tree-compiler antlr3 gperf swig libtinfo5
+          sudo -E apt-get -y autoremove --purge
+          sudo -E apt-get clean
+      - name: 依赖插件
+        run: |
+          cd ./package
+          git clone https://github.com/NueXini/NueXini_Packages.git
+          git clone https://github.com/ysoyipek/luci-theme-netgear.git
+      - name: 更新和安装包
+        run: |
+          ./scripts/feeds update -a
+          ./scripts/feeds install -a
+      - name: 生成配置文件
+        run: |
+          make defconfig
+      - name: 下载包的依赖
+        run: |
+          make download -j8 || make download -j1 V=s
+          rm -rf $(find ./dl/ -size -1024c)
+          df -h
+      - name: 编译定制固件
+        run: |
+          make -j$(nproc) || make -j1 V=s
+          df -h
+          du -h ./ --max-depth=1
+          du -h /mnt/openwrt/ --max-depth=1 || true
+      - name: 交付定制固件
+        uses: actions/upload-artifact@master
+        with:
+          name: openwrt
+          path: ./bin
