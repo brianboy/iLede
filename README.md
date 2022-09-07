@@ -41,7 +41,7 @@ config interface 'lan'
         option device 'eth0'
 ```
 
-### docker-compose.yml
+### 容器文件 docker-compose.yml
 ```
 version: "3.7"
 services:
@@ -59,6 +59,7 @@ services:
         max-size: 4M
     volumes:
       - /etc/localtime:/etc/localtime
+      - ./resolv.conf:/etc/resolv.conf
     command: /sbin/init
 networks:
   default:
@@ -66,6 +67,12 @@ networks:
     ipam:
       config:
         - subnet: "6.6.8.0/24"
+```
+
+### 容器文件 resolv.conf
+```
+nameserver 127.0.0.1
+options ndots:0
 ```
 
 ### 备份相关
